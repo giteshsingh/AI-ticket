@@ -1,0 +1,10 @@
+# Copy this file to config.yaml and tweak selectors if website structure changes.
+headless: true
+interval_seconds: 300
+timeout_ms: 20000
+dry_run: true
+
+# These selectors are defaults and may need updates over time.
+open_calendar_selector: "input[type='date'], .datepicker, [data-toggle='datepicker']"
+enabled_date_selector: ".ui-datepicker-calendar td:not(.ui-datepicker-unselectable):not(.disabled) a, .available-date"
+proceed_selector: "button:has-text('Proceed'), button:has-text('Book'), input[type='submit']"
