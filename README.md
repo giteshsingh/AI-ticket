@@ -6,6 +6,15 @@ This project provides a **run-on-demand** and **continuous retry** app to attemp
 
 > ⚠️ The site can include captcha/OTP/manual checks. This tool does not bypass those protections.
 
+### Login flow
+
+The site requires login before booking. The bot will:
+
+1. Open the login page: `https://www.shrimahakaleshwar.mp.gov.in/services/login`
+2. Enter your mobile number (from `config.yaml` or `MOBILE_NUMBER` in `.env`) and click **Get OTP**
+3. Pause so you can enter the OTP in the browser (use `--headful` so the window is visible)
+4. After login (or timeout), navigate to the Bhasma Aarti booking page and continue
+
 ## Why Python
 
 Python + Playwright is well-suited for browser automation with easy scheduling logic.

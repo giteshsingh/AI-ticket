@@ -1,8 +1,14 @@
 # Copy this file to config.yaml and tweak selectors if website structure changes.
-headless: true
+headless: false   # set true for unattended; false so you can enter OTP in the browser
 interval_seconds: 300
 timeout_ms: 20000
 dry_run: true
+
+# Login (required before booking). Or set MOBILE_NUMBER in .env.
+mobile_number: "8827801708"
+otp_wait_seconds: 120
+# Angular form: input has formcontrolname="mobile". Override only if site markup changes.
+# mobile_input_selector: "input[formcontrolname='mobile']"
 
 # These selectors are defaults and may need updates over time.
 open_calendar_selector: "input[type='date'], .datepicker, [data-toggle='datepicker']"

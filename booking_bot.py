@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -22,6 +23,7 @@ from playwright.sync_api import Page, TimeoutError, sync_playwright
 
 
 BOOKING_URL = "https://www.shrimahakaleshwar.mp.gov.in/services/bhasmaarti-booking"
+LOGIN_URL = "https://www.shrimahakaleshwar.mp.gov.in/services/login"
 
 
 @dataclass
@@ -30,6 +32,15 @@ class AppConfig:
     interval_seconds: int = 300
     timeout_ms: int = 20000
     dry_run: bool = True
+    # Login (required before booking)
+    mobile_number: str = ""
+    mobile_input_selector: str = (
+        "input[formcontrolname='mobile'], "
+        "input[placeholder='Enter your mobile number'], "
+        "input[placeholder*='mobile'], input[name*='mobile'], input[type='tel']"
+    )
+    get_otp_selector: str = "button:has-text('Get OTP'), button:has-text('Get Otp')"
+    otp_wait_seconds: int = 120
     # Selectors are configurable because booking portals frequently change markup.
     open_calendar_selector: str = "input[type='date'], .datepicker, [data-toggle='datepicker']"
     enabled_date_selector: str = ".ui-datepicker-calendar td:not(.ui-datepicker-unselectable):not(.disabled) a, .available-date"
@@ -42,6 +53,44 @@ def load_config(path: Optional[str]) -> AppConfig:
 
     data = yaml.safe_load(Path(path).read_text(encoding="utf-8")) or {}
     return AppConfig(**data)
+
+
+def do_login(page: Page, config: AppConfig) -> bool:
+    """Open login page, fill mobile number, click Get OTP, then wait for user to enter OTP."""
+    mobile = config.mobile_number or os.getenv("MOBILE_NUMBER", "")
+    if not mobile:
+        logging.warning(
+            "No mobile_number set. Set mobile_number in config or MOBILE_NUMBER in .env to enable login."
+        )
+        return False
+
+    logging.info("Opening login page: %s", LOGIN_URL)
+    page.goto(LOGIN_URL, timeout=config.timeout_ms, wait_until="domcontentloaded")
+
+    # Wait for login form (often in a modal/card) to be visible before filling
+    mobile_input = page.locator(config.mobile_input_selector).first
+    mobile_input.wait_for(state="visible", timeout=config.timeout_ms)
+    mobile_input.click()
+    mobile_input.fill(mobile)
+    logging.info("Entered mobile number; clicking Get OTP.")
+    page.locator(config.get_otp_selector).first.click(timeout=config.timeout_ms)
+
+    logging.info(
+        "Please enter the OTP in the browser window. Waiting up to %s seconds for login to complete...",
+        config.otp_wait_seconds,
+    )
+    try:
+        page.wait_for_url(
+            lambda url: "login" not in url,
+            timeout=config.otp_wait_seconds * 1000,
+        )
+        logging.info("Login completed (left login page).")
+    except TimeoutError:
+        logging.warning(
+            "OTP wait timed out after %s s. Continuing; booking may redirect to login again.",
+            config.otp_wait_seconds,
+        )
+    return True
 
 
 def find_next_available_date(page: Page, config: AppConfig) -> Optional[str]:
@@ -70,6 +119,8 @@ def try_booking_once(config: AppConfig) -> bool:
         browser = p.chromium.launch(headless=config.headless)
         page = browser.new_page()
         try:
+            # Login first (mobile + OTP); user enters OTP in browser if headful.
+            do_login(page, config)
             page.goto(BOOKING_URL, timeout=config.timeout_ms, wait_until="domcontentloaded")
             selected_date = find_next_available_date(page, config)
             if not selected_date:
